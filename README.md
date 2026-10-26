@@ -18,34 +18,34 @@ controller turns the notes into sound by making the motor hum them.
 
 ## Install
 
-On the scooter, if it has internet:
+Paste this into a root SSH shell on the scooter:
 
 ```sh
-wget -qO /tmp/music-install.sh \
-     https://raw.githubusercontent.com/Jonas-Click/music-service/main/install.sh \
-  && sh /tmp/music-install.sh
+installer=$(mktemp /tmp/music-install.XXXXXX) &&
+  wget -qO "$installer" https://github.com/teal-bauer/music-service/releases/latest/download/install.sh &&
+  sh "$installer" && rm -f "$installer"
 ```
 
-The installer asks a few questions (you can press Enter to accept the
-defaults), downloads the program, checks it against the published checksums,
-and sets it up to start automatically. Running it again later upgrades or
-reconfigures an existing install.
+This installs the latest release of this fork. The released installer is pinned to its own release, verifies every downloaded file against `SHA256SUMS`, and refuses incomplete or corrupt downloads before changing installed files. It installs a real `music` command usable immediately in login and non-login SSH shells, plus completion and boot restoration.
 
-**No internet on the scooter?** Download `music-service`, `install.sh`,
-`SHA256SUMS` and `music-completion.bash` from the
-[latest release](https://github.com/Jonas-Click/music-service/releases/latest)
-on your computer, then:
+Rerunning it upgrades either executable layout (`/data/bin/music-service` or `/data/music-service/music-service`). Existing `config.json`, song numbers, custom tracks, engine preferences and unlock/fanfare settings are kept. Fresh installs have automatic melodies and engine sound disabled. Change preferences afterward with `music settings`; an older config without `music.volume` uses the service default of 100 until you save another value. Private backups are retained under `/data/music-service-backups/`; a failed service start restores the previous executable and setup.
+
+The installer updates the MDB service, not the VESC app or firmware. MIDI playback needs the controller's music implementation. Reactive engine sound needs the corrected [TUNU app revision 4 or newer](https://github.com/Zanooda/tunu-configs/tree/main/tools/engine-sound); use its target-preserving builder rather than replacing a customized controller app. Warp playback additionally needs its resident VESC sample. No controller power, lock or riding-limit change is made by this installer.
+
+### Offline installation
+
+Download `music-service`, `install.sh`, `SHA256SUMS`, `music-completion.bash`, `music-service.service` and `config.json.example` from the [fork's latest release](https://github.com/teal-bauer/music-service/releases/latest) onto your computer. Stage them separately from the live installation:
 
 ```sh
-ssh root@192.168.7.1 "mkdir -p /data/music-service"
+ssh root@192.168.7.1 "mkdir -p /data/music-release"
 scp music-service install.sh SHA256SUMS music-completion.bash \
-    root@192.168.7.1:/data/music-service/
-ssh root@192.168.7.1 "sh /data/music-service/install.sh"
+    music-service.service config.json.example root@192.168.7.1:/data/music-release/
+ssh root@192.168.7.1 "sh /data/music-release/install.sh --offline /data/music-release"
 ```
 
-Everything lives in `/data/music-service/`, so it survives system updates.
+Offline mode makes no network requests and requires the same checksums. The executable, configuration and song library live in `/data/music-service/`; command compatibility paths live in `/data/bin/`. The installer restores the ephemeral unit, profile, completion and `/usr/bin/music` shortcut after system updates without restarting the onboot service.
 
-**Uninstall:**
+### Uninstall
 
 ```sh
 sh /data/music-service/install.sh --uninstall
@@ -122,10 +122,17 @@ These songs come built in:
 
 | # | Song |
 |---|------|
+| 1 | Axel F (native controller package) |
 | 2 | La Cucaracha |
 | 3 | Korobeiniki |
 | 4 | Happy Birthday to You |
-| 5 | robot car for justice (riff + fanfare) |
+| 5 | robot car for justice (Knight Rider riff + fanfare) |
+| 6 | Knight Rider |
+| 7 | TNG Warp 2 (resident controller sample required) |
+| 8 | Star Trek: The Next Generation |
+| 9 | Star Trek opening fanfare |
+
+These are fresh-install numbers. Existing installations retain their own numbers; use `music songs` to see them. Exact installed copies of the added arrangements are recognized even with other filenames or numbers, so upgrades do not add duplicates. The MIDI themes are embedded in the release binary. The separate `controller-samples.tar.gz` contains the warp stream for VESC app preparation; the MDB installer does not upload it. See [media credits and formats](MEDIA.md).
 
 Number 1 is reserved and can't be used for your own songs.
 
@@ -221,7 +228,7 @@ ends when the controller loses power (locking), `timed` at its deadline. The
 controller starts with the engine sound off at every power-up, so the service
 sends it again, allowing for the boot time. Nothing is sent while the
 controller is unpowered: unacknowledged frames would push the CAN controller
-towards bus-off. Only `on` and the volume are saved in `config.json`.
+towards bus-off. The persistent `on` mode, volume and style are saved in `config.json`.
 
 ### CAN frames
 
