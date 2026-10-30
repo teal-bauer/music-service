@@ -69,6 +69,30 @@ func TestLegacyResidentSevenAndItsIdentityStayUnchanged(t *testing.T) {
 	}
 }
 
+func TestUnkeyedLegacySampleIsRecognizedWithoutRenumbering(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "songs"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	legacy := []Song{{Number: 7, Name: "TNG Warp 2", Source: "builtin-samples"}}
+	if err := writeSongsFile(filepath.Join(dir, "songs.json"), legacy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := syncDefaultSongs(dir, embeddedSongs); err != nil {
+		t.Fatal(err)
+	}
+	catalog := readCatalog(t, dir)
+	index := catalogIndexByDefault(catalog, "tng-warp2")
+	if index < 0 || catalog[index].Number != 7 || catalog[index].Name != "TNG Warp 2" {
+		t.Fatalf("legacy sample not preserved: %#v", catalog)
+	}
+	for _, song := range catalog {
+		if song.Number == 240 {
+			t.Fatal("created a second sample for an unmodified legacy installation")
+		}
+	}
+}
+
 func TestResidentNumberCollisionIsNotOverwritten(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "songs"), 0700); err != nil {
