@@ -22,7 +22,7 @@ Paste this into a root SSH shell on the scooter:
 
 ```sh
 installer=$(mktemp /tmp/music-install.XXXXXX) &&
-  wget -qO "$installer" https://github.com/teal-bauer/music-service/releases/latest/download/install.sh &&
+  wget -T 20 -qO "$installer" https://github.com/teal-bauer/music-service/releases/latest/download/install.sh &&
   sh "$installer" && rm -f "$installer"
 ```
 
@@ -43,7 +43,7 @@ scp music-service install.sh SHA256SUMS music-completion.bash \
 ssh root@192.168.7.1 "sh /data/music-release/install.sh --offline /data/music-release"
 ```
 
-Offline mode makes no network requests and requires the same checksums. The executable, configuration and song library live in `/data/music-service/`; command compatibility paths live in `/data/bin/`. The installer restores the ephemeral unit, profile, completion and `/usr/bin/music` shortcut after system updates without restarting the onboot service.
+Offline mode makes no network requests and requires the same checksums. The executable, configuration and song library live in `/data/music-service/`; command compatibility paths live in `/data/bin/`. The installer restores the ephemeral unit, profile, completion and `/usr/local/bin/music` shortcut after system updates without restarting the onboot service.
 
 ### Uninstall
 
@@ -129,8 +129,8 @@ These songs come built in:
 | 5 | robot car for justice (Knight Rider riff + fanfare) |
 | 6 | Knight Rider |
 | 240 | Space Whoosh (resident controller sample required) |
-| 8 | Star Trek: The Next Generation |
-| 9 | Star Trek opening fanfare |
+| 8 | Space Journey |
+| 9 | Space Journey Fanfare |
 
 These are fresh-install numbers. Existing installations retain their own numbers; use `music songs` to see them. Exact installed copies of the added arrangements are recognized even with other filenames or numbers, so upgrades do not add duplicates. The MIDI themes are embedded in the release binary. The separate `controller-samples.tar.gz` contains the warp stream for VESC app preparation; the MDB installer does not upload it. See [media credits and formats](MEDIA.md).
 

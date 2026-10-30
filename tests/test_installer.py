@@ -82,7 +82,7 @@ esac
         self.run_install()
         install = self.root / 'data/music-service'
         self.assertEqual((install / 'config.json').read_bytes(), (self.bundle / 'config.json.example').read_bytes())
-        result = subprocess.run([str(self.root / 'usr/bin/music'), 'engine', 'style', 'electric'], capture_output=True, text=True)
+        result = subprocess.run([str(self.root / 'usr/local/bin/music'), 'engine', 'style', 'electric'], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), 'ctl engine style electric')
         self.assertTrue((self.root / 'data/bin/music-service').is_symlink())
@@ -102,6 +102,19 @@ esac
         self.assertEqual((install / 'config.json').read_bytes(), config)
         self.assertEqual((self.root / 'data/music-service-backups').stat().st_mode & 0o777, 0o700)
 
+    def test_existing_backups_are_kept(self):
+        self.existing()
+        backups = self.root / 'data/music-service-backups'
+        backups.mkdir(parents=True)
+        (backups / 'manual').mkdir()
+        for _ in range(5):
+            self.run_install()
+        self.assertEqual(len(list(backups.glob('install-*'))), 5)
+        self.assertTrue((backups / 'manual').exists())
+        (self.root / 'fail-start').touch()
+        self.run_install(success=False)
+        self.assertEqual(len(list(backups.glob('install-*'))), 6)
+
     def test_custom_unit_options_survive(self):
         self.existing()
         unit = self.root / 'etc/systemd/system/music-service.service'
@@ -115,8 +128,8 @@ esac
     def test_boot_restores_ephemeral_files_without_restart_loop(self):
         self.existing()
         self.run_install()
-        paths = ('etc/systemd/system/music-service.service', 'etc/profile.d/music-alias.sh',
-                 'etc/bash_completion.d/music', 'usr/bin/music')
+        paths = ('etc/systemd/system/music-service.service', 'etc/profile.d/music-path.sh',
+                 'etc/bash_completion.d/music', 'usr/local/bin/music')
         for path in paths:
             (self.root / path).unlink()
         result = subprocess.run(['sh', str(self.root / 'data/onboot.sh')], env=self.env, capture_output=True, text=True)
@@ -151,7 +164,7 @@ esac
 
     def test_unrelated_shortcut_and_unbalanced_boot_markers_are_rejected(self):
         self.existing()
-        shortcut = self.root / 'usr/bin/music'
+        shortcut = self.root / 'usr/local/bin/music'
         shortcut.parent.mkdir(parents=True)
         shortcut.symlink_to('/unrelated/player')
         self.run_install(success=False)
@@ -160,6 +173,16 @@ esac
         (self.root / 'data/onboot.sh').write_text('#!/bin/sh\n# >>> music-service >>>\n')
         self.run_install(success=False)
         self.assertEqual((self.root / 'data/bin/music-service').read_text(), 'old executable')
+
+    def test_boot_does_not_replace_unrelated_shortcut(self):
+        self.existing()
+        self.run_install()
+        shortcut = self.root / 'usr/local/bin/music'
+        shortcut.unlink()
+        shortcut.symlink_to('/unrelated/player')
+        result = subprocess.run(['sh', str(self.root / 'data/onboot.sh')], env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(os.readlink(shortcut), '/unrelated/player')
 
     def test_uninstall_keeps_songs_and_unrelated_boot_hook(self):
         install, config = self.existing()

@@ -122,7 +122,7 @@ func syncDefaultSongs(dir string, emb fs.FS) ([]string, error) {
 		if _, offered := state.Offered[d.Default]; offered {
 			continue
 		}
-		if index, sums := catalogIndexByContent(catalog, d, trackDir, emb); index >= 0 {
+		if index, sums := catalogIndexByIdentity(catalog, d, trackDir, emb); index >= 0 {
 			catalog[index].Default = d.Default
 			state.Offered[d.Default] = sums
 			changed = true
@@ -219,7 +219,7 @@ func migrateDefaults(catalog []Song, defs []embeddedDefault, state defaultsState
 			i = catalogIndexByFiles(catalog, d.Tracks)
 		}
 		if i < 0 {
-			i, _ = catalogIndexByContent(catalog, d, trackDir, emb)
+			i, _ = catalogIndexByIdentity(catalog, d, trackDir, emb)
 		}
 		if i < 0 {
 			if legacy {
@@ -321,6 +321,25 @@ func catalogIndexByDefault(catalog []Song, key string) int {
 	return -1
 }
 
+func catalogIndexByIdentity(catalog []Song, want embeddedDefault, dir string, emb fs.FS) (int, map[string]string) {
+	if len(want.Tracks) == 0 {
+		for i, song := range catalog {
+			if song.Default != "" || song.Source != want.Source || len(song.Tracks) != 0 {
+				continue
+			}
+			if want.Default == "axel-f" && song.Number == axelfReservedNumber {
+				return i, map[string]string{}
+			}
+			if want.Default == "tng-warp2" && (song.Number == 7 || song.Number == 240) &&
+				(song.Name == "TNG Warp 2" || song.Name == "Space Whoosh") {
+				return i, map[string]string{}
+			}
+		}
+		return -1, nil
+	}
+	return catalogIndexByContent(catalog, want, dir, emb)
+}
+
 // Recognize exact installed copies even when an older installation used other
 // filenames or numbers. Names, volumes, decay and numbering remain user-owned.
 func catalogIndexByContent(catalog []Song, want embeddedDefault, dir string, emb fs.FS) (int, map[string]string) {
@@ -328,7 +347,7 @@ func catalogIndexByContent(catalog []Song, want embeddedDefault, dir string, emb
 		if song.Default != "" || song.Source != want.Source || len(song.Tracks) != len(want.Tracks) {
 			continue
 		}
-		if len(song.Tracks) == 0 && song.Source == "" {
+		if len(song.Tracks) == 0 {
 			continue
 		}
 		sums := map[string]string{}

@@ -25,6 +25,9 @@ func TestSongPackPreservesInstalledCopiesAndNumbers(t *testing.T) {
 	for index, def := range defs {
 		song := def.Song
 		song.Default = ""
+		if len(song.Tracks) == 0 {
+			song.Default = def.Default
+		}
 		song.Number = 20 + index
 		song.Name = "My " + song.Name
 		song.Tracks = append([]SongTrack(nil), song.Tracks...)
@@ -64,7 +67,7 @@ func TestSongPackPreservesInstalledCopiesAndNumbers(t *testing.T) {
 		if song.Default != defs[index].Default {
 			t.Fatalf("unrecognized song: %#v", song)
 		}
-		song.Default = ""
+		song.Default = original[index].Default
 		if !reflect.DeepEqual(song, original[index]) {
 			t.Fatalf("user settings changed: %#v / %#v", song, original[index])
 		}

@@ -30,6 +30,23 @@
   `config.json` can be changed with `music settings <key> <value>`, including
   `status.stale_seconds`, `can.interface` and `redis.addr` (the last two after
   a restart); keys, checks, help and shell completion come from one table.
+- `music` is now a real command in `/data/bin/music` instead of a shell
+  alias, linked from `/usr/local/bin/music`, so it also works where no
+  profile is loaded (the Sunshine web shell, `sh -c`, scripts). The link is
+  restored on every boot after a system update. The installer removes the
+  old alias.
+- The installer no longer hangs on a bad connection: downloads give up after
+  20 seconds without data (at most 3 tries), and it says what it's fetching.
+- Safer installer (by teal-bauer): it downloads and checks every release file
+  against `SHA256SUMS` before changing anything, keeps `config.json` and your
+  songs, backs up the old install to `/data/music-service-backups/` (the three
+  newest backups are kept), and puts it back if the new service doesn't start.
+  No more questions: settings are changed afterwards with `music settings`.
+  Without internet, copy the release files to the scooter and run
+  `install.sh --offline <dir>`. The service, `music` command and shell
+  completion are restored on every boot after a system update. Releases now
+  also ship `music-service.service` and `config.json.example`, which the
+  installer needs.
 
 ## v1.0.0 — 2026-10-12
 
