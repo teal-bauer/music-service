@@ -28,7 +28,15 @@ import (
 	"sort"
 )
 
-const axelfReservedNumber = 1
+const (
+	axelfReservedNumber = 1
+	residentSoundMin    = 240
+	residentSoundMax    = 255
+)
+
+func validStreamedSongNumber(number int) bool {
+	return number > axelfReservedNumber && number < residentSoundMin
+}
 
 //go:embed songs.json songs
 var embeddedSongs embed.FS

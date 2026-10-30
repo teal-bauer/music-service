@@ -130,8 +130,15 @@ func syncDefaultSongs(dir string, emb fs.FS) ([]string, error) {
 			continue
 		}
 		number := d.Number
-		if !fresh || songNumberUsed(catalog, number) {
+		if d.Source == "builtin-samples" {
+			if number < residentSoundMin || number > residentSoundMax || songNumberUsed(catalog, number) {
+				return changes, fmt.Errorf("resident sound %s requires its available controller number %d", d.Default, number)
+			}
+		} else if !fresh || songNumberUsed(catalog, number) {
 			number = nextSongNumber(catalog)
+			if number == 0 {
+				return changes, fmt.Errorf("no free streamed song number below %d", residentSoundMin)
+			}
 		}
 		song, sums, err := installDefault(d, number, trackDir, emb)
 		if err != nil {
@@ -291,14 +298,16 @@ func songNumberUsed(catalog []Song, n int) bool {
 	return false
 }
 
-// nextSongNumber is one after the highest number in use, never the number
-// reserved for Axel F.
+// nextSongNumber ignores resident sound numbers and returns 0 on exhaustion.
 func nextSongNumber(catalog []Song) int {
 	max := axelfReservedNumber
 	for _, s := range catalog {
-		if s.Number > max {
+		if s.Number > max && s.Number < residentSoundMin {
 			max = s.Number
 		}
+	}
+	if max+1 >= residentSoundMin {
+		return 0
 	}
 	return max + 1
 }

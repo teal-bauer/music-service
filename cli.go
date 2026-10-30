@@ -423,6 +423,10 @@ Examples:
 		fmt.Fprintln(os.Stderr, "(Axel F isn't in the default catalog, but Tunu's app.lisp still treats this number specially — see README.md)")
 		os.Exit(1)
 	}
+	if !validStreamedSongNumber(number) {
+		fmt.Fprintf(os.Stderr, "song numbers %d-%d are reserved for controller sounds; streamed songs use 2-%d\n", residentSoundMin, residentSoundMax, residentSoundMin-1)
+		os.Exit(1)
+	}
 	if _, taken := songByNumber(number); taken {
 		fmt.Fprintf(os.Stderr, "song number %d is already in use (%s) — pick a different number\n", number, songName(number))
 		os.Exit(1)

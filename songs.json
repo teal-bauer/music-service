@@ -18,7 +18,7 @@
     { "file": "knight-rider-mel.bin", "volume": 1.0, "decay": 0.92 },
     { "file": "knight-rider-bass.bin", "volume": 1.0, "decay": 0.92 }
   ]},
-  { "number": 7, "name": "TNG Warp 2", "default": "tng-warp2", "since": "1.1.1", "source": "builtin-samples" },
+  { "number": 240, "name": "Space Whoosh", "default": "tng-warp2", "since": "1.1.1", "source": "builtin-samples" },
   { "number": 8, "name": "Star Trek: The Next Generation", "default": "tng-theme", "since": "1.1.1", "tracks": [
     { "file": "tng-theme-mel.bin", "volume": 1.0, "decay": 1.0 },
     { "file": "tng-theme-bass.bin", "volume": 0.5, "decay": 1.0 }

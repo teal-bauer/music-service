@@ -128,13 +128,13 @@ These songs come built in:
 | 4 | Happy Birthday to You |
 | 5 | robot car for justice (Knight Rider riff + fanfare) |
 | 6 | Knight Rider |
-| 7 | TNG Warp 2 (resident controller sample required) |
+| 240 | Space Whoosh (resident controller sample required) |
 | 8 | Star Trek: The Next Generation |
 | 9 | Star Trek opening fanfare |
 
 These are fresh-install numbers. Existing installations retain their own numbers; use `music songs` to see them. Exact installed copies of the added arrangements are recognized even with other filenames or numbers, so upgrades do not add duplicates. The MIDI themes are embedded in the release binary. The separate `controller-samples.tar.gz` contains the warp stream for VESC app preparation; the MDB installer does not upload it. See [media credits and formats](MEDIA.md).
 
-Number 1 is reserved and can't be used for your own songs.
+Number 1 is reserved for Axel F. Numbers 240-255 are reserved for resident controller sounds; streamed songs use 2-239. Existing entries are not renumbered automatically. A legacy sound at 7 remains at 7 until its controller image, catalogue and trigger are migrated together.
 
 ### Add your own
 
