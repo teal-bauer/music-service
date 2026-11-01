@@ -52,10 +52,12 @@ const (
 )
 
 type engineState struct {
-	mode   engineMode
-	until  time.Time // engineTimed only
-	volume int
-	style  int // index into engineStyles
+	mode             engineMode
+	until            time.Time // engineTimed only
+	volume           int
+	style            int // index into engineStyles
+	requireLeftBrake bool
+	driveAdmitted    bool
 	// gen changes on every mode change, so a timer started for an older
 	// mode can tell it has been superseded and stop.
 	gen int
@@ -72,10 +74,16 @@ func (s engineState) armed(now time.Time) bool {
 	return false
 }
 
-// sounding reports whether the engine sound should be playing: armed and the
-// kickstand up.
+// sounding includes the latched admission, not the brake's current level.
 func (s engineState) sounding(now time.Time, vehicleState string) bool {
-	return s.armed(now) && vehicleState == vehicleStateReady
+	return s.armed(now) && vehicleState == vehicleStateReady && (!s.requireLeftBrake || s.driveAdmitted)
+}
+
+func (s *engineState) admitDrive(oldState, newState, leftBrake string) {
+	if oldState == newState {
+		return
+	}
+	s.driveAdmitted = oldState == vehicleStateParked && newState == vehicleStateReady && leftBrake == "on"
 }
 
 var engine struct {
@@ -124,6 +132,10 @@ func engineInit(c *Config) {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	engine.s = engineState{mode: engineOff, volume: engineDefaultVolume}
+	engine.vehicleState = ""
+	engine.assertGen++
+	engine.demo = false
+	engine.s.requireLeftBrake = c.EngineSound.RequireLeftBrake != nil && *c.EngineSound.RequireLeftBrake
 	if c.EngineSound.Volume != nil {
 		engine.s.volume = *c.EngineSound.Volume
 	}
@@ -153,6 +165,8 @@ func engineToConfig(c *Config) {
 	c.EngineSound.Enabled = &enabled
 	c.EngineSound.Volume = &volume
 	c.EngineSound.Style = &style
+	required := s.requireLeftBrake
+	c.EngineSound.RequireLeftBrake = &required
 }
 
 func vehiclePowered(state string) bool {
@@ -217,6 +231,21 @@ func engineApplyStyle(sink canSink, id int) {
 	}
 }
 
+func engineApplyBrakeRequired(sink canSink, required bool) {
+	engine.mu.Lock()
+	wasOn := engine.s.sounding(time.Now(), engine.vehicleState)
+	engine.s.requireLeftBrake = required
+	// A setting change must not reuse an admission from an earlier interval.
+	engine.s.driveAdmitted = false
+	s, vstate := engine.s, engine.vehicleState
+	engine.mu.Unlock()
+	log.Printf("ctl: engine requires left brake -> %t", required)
+	engineWriteStatus(s, vstate)
+	if wasOn || s.sounding(time.Now(), vstate) {
+		go engineAssert(sink, engineCmdAttempts)
+	}
+}
+
 // engineExpireAfter switches a timed engine sound off at its deadline, unless
 // something else changed the state first.
 func engineExpireAfter(sink canSink, gen int, d time.Duration) {
@@ -247,7 +276,7 @@ func engineExpireAfter(sink canSink, gen int, d time.Duration) {
 // ready-to-drive) starts an armed engine sound, kickstand down (into parked)
 // stops it, and losing power (locking) ends a one-ride engine sound. It
 // reports whether Tunu just gained power (it boots then).
-func engineVehicleState(sink canSink, newState string) (poweredUp bool) {
+func engineVehicleState(sink canSink, newState, leftBrake string) (poweredUp bool) {
 	now := time.Now()
 	engine.mu.Lock()
 	old := engine.vehicleState
@@ -259,6 +288,10 @@ func engineVehicleState(sink canSink, newState string) (poweredUp bool) {
 	wasPowered, isPowered := vehiclePowered(old), vehiclePowered(newState)
 	poweredUp = isPowered && !wasPowered
 	wasOn := engine.s.sounding(now, old)
+	engine.s.admitDrive(old, newState, leftBrake)
+	if engine.s.requireLeftBrake {
+		log.Printf("engine: gate %s -> %s, left brake %q, admitted %t, style %s, volume %d%%", old, newState, leftBrake, engine.s.driveAdmitted, engineStyleName(engine.s.style), engine.s.volume)
+	}
 	rideEnded := wasPowered && !isPowered && engine.s.mode == engineRide
 	if rideEnded {
 		engine.s.mode = engineOff
@@ -289,16 +322,18 @@ func engineVehicleState(sink canSink, newState string) (poweredUp bool) {
 // state: Tunu keeps running through an MDB crash or reboot, so it may still be
 // playing an engine sound this fresh service knows nothing about. After a
 // reconnect it is an ordinary state change.
-func engineSeed(sink canSink, state string) {
+func engineSeed(sink canSink, state, leftBrake string) {
 	engine.mu.Lock()
 	first := engine.vehicleState == ""
 	if first {
 		engine.vehicleState = state
+		// Starting in ready-to-drive is not an observed parked-to-drive edge.
+		engine.s.driveAdmitted = false
 	}
 	s := engine.s
 	engine.mu.Unlock()
 	if !first {
-		engineVehicleState(sink, state)
+		engineVehicleState(sink, state, leftBrake)
 		return
 	}
 	engineWriteStatus(s, state)
@@ -403,11 +438,14 @@ func engineWriteStatus(s engineState, vehicleState string) {
 		until = strconv.FormatInt(s.until.Unix(), 10)
 	}
 	for k, v := range map[string]string{
-		engineStatusMode:      string(s.mode),
-		engineStatusUntil:     until,
-		engineStatusWantVol:   strconv.Itoa(s.volume),
-		engineStatusWantStyle: engineStyleName(s.style),
-		engineStatusSounding:  strconv.FormatBool(s.sounding(time.Now(), vehicleState)),
+		"engine_vehicle_state":  vehicleState,
+		"engine_brake_required": strconv.FormatBool(s.requireLeftBrake),
+		"engine_drive_admitted": strconv.FormatBool(s.driveAdmitted),
+		engineStatusMode:        string(s.mode),
+		engineStatusUntil:       until,
+		engineStatusWantVol:     strconv.Itoa(s.volume),
+		engineStatusWantStyle:   engineStyleName(s.style),
+		engineStatusSounding:    strconv.FormatBool(s.sounding(time.Now(), vehicleState)),
 	} {
 		if err := conn.hset(statusHash, k, v, ""); err != nil {
 			log.Printf("engine: status: hset %s failed: %v", k, err)

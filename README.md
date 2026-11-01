@@ -121,6 +121,26 @@ music engine demo        # hear a 30-second demo while standing still
 music engine             # show the current mode
 ```
 
+### Left-brake admission
+
+```sh
+music settings engine.require_left_brake true
+```
+
+With this optional setting, an armed engine sound starts only when the service
+observes `parked` to `ready-to-drive` with `vehicle[brake:left]` equal to `on`.
+State and brake are read together before sending an engine-on command. This is
+an observed Redis snapshot, not a hardware-timestamped transition. Missing or
+invalid brake state does not grant admission. Releasing the brake afterward
+leaves the sound on; returning to parked clears admission. Each new drive
+interval needs the brake again. A service restart does not restore admission.
+Manual volume/style changes do not grant it. Demo playback remains explicit.
+The default is `false`, preserving normal activation without the brake.
+
+The `music` hash exposes `engine_brake_required`, `engine_drive_admitted`, and
+`engine_vehicle_state` alongside the existing wanted and confirmed sound fields.
+The service journal logs each admission decision, style and volume.
+
 ## Songs
 
 These songs come built in:

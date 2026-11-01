@@ -142,6 +142,12 @@ var settingsRegistry = []settingDef{
 		},
 	},
 	{
+		key: "engine.require_left_brake", desc: "Require left brake at parked-to-drive for engine sound", choices: boolChoices,
+		show:  func(c *Config) string { return showBool(c.EngineSound.RequireLeftBrake) },
+		check: checkBool,
+		apply: func(sink canSink, v string) { engineApplyBrakeRequired(sink, v == "true") },
+	},
+	{
 		key: "engine.volume", desc: "Engine sound volume 0-100",
 		show:  func(c *Config) string { return showInt(c.EngineSound.Volume, engineDefaultVolume) },
 		check: checkRange(0, 100),

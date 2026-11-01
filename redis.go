@@ -68,8 +68,8 @@ func redisWatchLoop(sink canSink) error {
 		lastVehicleField[triggerField] = vals[0]
 	}
 	// The engine sound follows the vehicle state too.
-	if vals, err := cmdConn.hmget(vehicleHash, engineStateField); err == nil && len(vals) >= 1 {
-		engineSeed(sink, vals[0])
+	if vals, err := cmdConn.hmget(vehicleHash, engineStateField, "brake:left"); err == nil && len(vals) == 2 {
+		engineSeed(sink, vals[0], vals[1])
 	}
 	es, vstate := engineSnapshot()
 	engineWriteStatus(es, vstate)
@@ -130,8 +130,9 @@ var lastVehicleField = map[string]string{}
 func handleVehicleField(sink canSink, cmdConn *redisConn, field string) {
 	poweredUp := false
 	if field == engineStateField {
-		if vals, err := cmdConn.hmget(vehicleHash, field); err == nil && len(vals) >= 1 {
-			poweredUp = engineVehicleState(sink, vals[0])
+		// Sample state and brake together before any engine-on assertion.
+		if vals, err := cmdConn.hmget(vehicleHash, field, "brake:left"); err == nil && len(vals) == 2 {
+			poweredUp = engineVehicleState(sink, vals[0], vals[1])
 		}
 	}
 	// Tunu starts at volume 100 after every power-up: apply the saved music
