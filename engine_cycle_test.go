@@ -38,6 +38,28 @@ func TestDriveNotificationContainsStyleWithoutVolume(t *testing.T) {
 	}
 }
 
+func TestChangedDriveNotificationIsDiscardedBeforeConnecting(t *testing.T) {
+	previous := cfg
+	cfg = nil
+	defer func() { cfg = previous }()
+	wanted := engineState{mode: engineOn, style: 1, notifyOnDrive: true}
+	for _, current := range []engineState{
+		{mode: engineOn, style: 1, notifyOnDrive: false},
+		{mode: engineOn, style: 2, notifyOnDrive: true},
+		{mode: engineOff, style: 1, notifyOnDrive: true},
+	} {
+		engine.mu.Lock()
+		engine.vehicleState = vehicleStateReady
+		engine.driveGeneration = 3
+		engine.s = current
+		engine.mu.Unlock()
+		engineNotifyDrive(wanted, 3)
+	}
+	engine.mu.Lock()
+	engine.vehicleState = ""
+	engine.mu.Unlock()
+}
+
 func TestOldDriveNotificationIsDiscardedBeforeConnecting(t *testing.T) {
 	previous := cfg
 	cfg = nil

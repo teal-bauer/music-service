@@ -81,6 +81,22 @@ class CycleIntegration(EngineFixture):
         self.assertEqual(self.notifications()[0]["title"], "Engine sound off")
         self.assertEqual(self.on_frames(), 0)
 
+    def test_cycle_combines_with_optional_brake_admission(self):
+        self.configure(require_left_brake=True, cycle_on_drive=True, notify_on_drive=True)
+        self.start()
+        if self.redis("HGET", "music", "engine_brake_required") != "true":
+            self.skipTest("brake admission is not available in this branch")
+        self.subscribe()
+        self.transition("ready-to-drive", "off")
+        self.wait(lambda: self.style() == "moped" and len(self.notifications()) == 1)
+        self.assertEqual(self.notifications()[0]["title"], "Engine sound off")
+        self.assertEqual(self.on_frames(), 0)
+        self.transition("parked")
+        self.transition("ready-to-drive", "on")
+        self.wait(lambda: len(self.notifications()) == 2)
+        self.assertEqual(self.notifications()[1]["title"], "Engine sound: Sport")
+        self.wait(lambda: "id=0x4EA data=01 32 02" in self.log.read_text())
+
     def test_both_features_default_off(self):
         self.start()
         self.subscribe()

@@ -252,7 +252,9 @@ func engineNotifyDrive(s engineState, generation uint64) {
 	current := func() bool {
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
-		return engine.driveGeneration == generation && engine.vehicleState == vehicleStateReady
+		return engine.driveGeneration == generation && engine.vehicleState == vehicleStateReady &&
+			engine.s.notifyOnDrive && engine.s.style == s.style &&
+			engine.s.sounding(time.Now(), vehicleStateReady) == s.sounding(time.Now(), vehicleStateReady)
 	}
 	if !current() {
 		return
