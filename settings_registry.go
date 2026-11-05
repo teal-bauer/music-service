@@ -142,6 +142,18 @@ var settingsRegistry = []settingDef{
 		},
 	},
 	{
+		key: "engine.cycle_on_drive", desc: "Cycle engine style on parked-to-drive", choices: boolChoices,
+		show:  func(c *Config) string { return showBool(c.EngineSound.CycleOnDrive) },
+		check: checkBool,
+		apply: func(_ canSink, v string) { engineApplyCycleOnDrive(v == "true") },
+	},
+	{
+		key: "engine.notify_on_drive", desc: "Send a dashboard notification on parked-to-drive", choices: boolChoices,
+		show:  func(c *Config) string { return showBool(c.EngineSound.NotifyOnDrive) },
+		check: checkBool,
+		apply: func(_ canSink, v string) { engineApplyNotifyOnDrive(v == "true") },
+	},
+	{
 		key: "engine.volume", desc: "Engine sound volume 0-100",
 		show:  func(c *Config) string { return showInt(c.EngineSound.Volume, engineDefaultVolume) },
 		check: checkRange(0, 100),

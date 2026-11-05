@@ -90,6 +90,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		"unlock.volume": "80", "unlock.duration": "12", "unlock.trigger_field": "state",
 		"unlock.trigger_value": "parked", "unlock.trigger_from": "",
 		"engine.enabled": "true", "engine.volume": "65", "engine.style": "vtwin",
+		"engine.cycle_on_drive": "true", "engine.notify_on_drive": "true",
 		"status.stale_seconds": "9", "can.interface": "can1", "redis.addr": "10.0.0.5:6380",
 	}
 	sink := newNullSink()

@@ -13,6 +13,7 @@ package main
 // towards bus-off.
 
 import (
+	"encoding/json"
 	"log"
 	"strconv"
 	"sync"
@@ -52,10 +53,12 @@ const (
 )
 
 type engineState struct {
-	mode   engineMode
-	until  time.Time // engineTimed only
-	volume int
-	style  int // index into engineStyles
+	mode          engineMode
+	until         time.Time // engineTimed only
+	volume        int
+	style         int // index into engineStyles
+	cycleOnDrive  bool
+	notifyOnDrive bool
 	// gen changes on every mode change, so a timer started for an older
 	// mode can tell it has been superseded and stop.
 	gen int
@@ -88,7 +91,8 @@ var engine struct {
 	// retry loop stops instead of racing it.
 	assertGen int
 	// demo mirrors Tunu's last Engine_Status: a demo ride is playing.
-	demo bool
+	demo            bool
+	driveGeneration uint64
 }
 
 type engineEcho struct {
@@ -124,6 +128,9 @@ func engineInit(c *Config) {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	engine.s = engineState{mode: engineOff, volume: engineDefaultVolume}
+	engine.driveGeneration++
+	engine.s.cycleOnDrive = c.EngineSound.CycleOnDrive != nil && *c.EngineSound.CycleOnDrive
+	engine.s.notifyOnDrive = c.EngineSound.NotifyOnDrive != nil && *c.EngineSound.NotifyOnDrive
 	if c.EngineSound.Volume != nil {
 		engine.s.volume = *c.EngineSound.Volume
 	}
@@ -153,6 +160,9 @@ func engineToConfig(c *Config) {
 	c.EngineSound.Enabled = &enabled
 	c.EngineSound.Volume = &volume
 	c.EngineSound.Style = &style
+	cycle, notify := s.cycleOnDrive, s.notifyOnDrive
+	c.EngineSound.CycleOnDrive = &cycle
+	c.EngineSound.NotifyOnDrive = &notify
 }
 
 func vehiclePowered(state string) bool {
@@ -217,6 +227,50 @@ func engineApplyStyle(sink canSink, id int) {
 	}
 }
 
+func engineApplyCycleOnDrive(enabled bool) {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	engine.s.cycleOnDrive = enabled
+}
+
+func engineApplyNotifyOnDrive(enabled bool) {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	engine.s.notifyOnDrive = enabled
+}
+
+func engineDriveNotification(s engineState) string {
+	title := "Engine sound off"
+	if s.sounding(time.Now(), vehicleStateReady) {
+		title = "Engine sound: " + []string{"V8", "Moped", "Sport", "V-Twin", "Electric"}[s.style]
+	}
+	payload, _ := json.Marshal(map[string]any{"source": "engine-sound", "id": "drive-sound", "severity": "info", "ttl_ms": 8000, "title": title})
+	return string(payload)
+}
+
+func engineNotifyDrive(s engineState, generation uint64) {
+	current := func() bool {
+		engine.mu.Lock()
+		defer engine.mu.Unlock()
+		return engine.driveGeneration == generation && engine.vehicleState == vehicleStateReady
+	}
+	if !current() {
+		return
+	}
+	conn, err := redisConnect(cfg.Redis.Addr)
+	if err != nil {
+		log.Printf("engine: notification: %v", err)
+		return
+	}
+	defer conn.close()
+	if !current() {
+		return
+	}
+	if _, err := conn.publish("scootui:notification", engineDriveNotification(s)); err != nil {
+		log.Printf("engine: notification: %v", err)
+	}
+}
+
 // engineExpireAfter switches a timed engine sound off at its deadline, unless
 // something else changed the state first.
 func engineExpireAfter(sink canSink, gen int, d time.Duration) {
@@ -256,6 +310,12 @@ func engineVehicleState(sink canSink, newState string) (poweredUp bool) {
 		return
 	}
 	engine.vehicleState = newState
+	engine.driveGeneration++
+	generation := engine.driveGeneration
+	driveStarted := old == vehicleStateParked && newState == vehicleStateReady
+	if driveStarted && engine.s.cycleOnDrive {
+		engine.s.style = (engine.s.style + 1) % len(engineStyles)
+	}
 	wasPowered, isPowered := vehiclePowered(old), vehiclePowered(newState)
 	poweredUp = isPowered && !wasPowered
 	wasOn := engine.s.sounding(now, old)
@@ -267,7 +327,14 @@ func engineVehicleState(sink canSink, newState string) (poweredUp bool) {
 	s := engine.s
 	engine.mu.Unlock()
 
+	if driveStarted && s.notifyOnDrive {
+		go engineNotifyDrive(s, generation)
+	}
 	engineWriteStatus(s, newState)
+	if driveStarted && s.cycleOnDrive {
+		log.Printf("engine: drive style -> %s", engineStyleName(s.style))
+		saveSettings()
+	}
 	if rideEnded {
 		// No CAN frame: Tunu is losing power with the lock anyway.
 		log.Printf("engine: ride over (%s -> %s), engine sound off", old, newState)
@@ -403,11 +470,12 @@ func engineWriteStatus(s engineState, vehicleState string) {
 		until = strconv.FormatInt(s.until.Unix(), 10)
 	}
 	for k, v := range map[string]string{
-		engineStatusMode:      string(s.mode),
-		engineStatusUntil:     until,
-		engineStatusWantVol:   strconv.Itoa(s.volume),
-		engineStatusWantStyle: engineStyleName(s.style),
-		engineStatusSounding:  strconv.FormatBool(s.sounding(time.Now(), vehicleState)),
+		"engine_vehicle_state": vehicleState,
+		engineStatusMode:       string(s.mode),
+		engineStatusUntil:      until,
+		engineStatusWantVol:    strconv.Itoa(s.volume),
+		engineStatusWantStyle:  engineStyleName(s.style),
+		engineStatusSounding:   strconv.FormatBool(s.sounding(time.Now(), vehicleState)),
 	} {
 		if err := conn.hset(statusHash, k, v, ""); err != nil {
 			log.Printf("engine: status: hset %s failed: %v", k, err)

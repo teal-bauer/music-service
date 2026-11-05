@@ -121,6 +121,28 @@ music engine demo        # hear a 30-second demo while standing still
 music engine             # show the current mode
 ```
 
+### Style rotation and dashboard notification
+
+Both features are optional and independent:
+
+```sh
+music settings engine.cycle_on_drive true
+music settings engine.notify_on_drive true
+```
+
+Style rotation advances V8, Moped, Sport, V-Twin, Electric, then repeats on each
+observed `parked` to `ready-to-drive` transition. The new style is selected
+before the first engine-on command and saved for the next interval. Duplicate
+state notifications and service starts do not advance it. It also advances
+while engine sound is off, without enabling sound.
+
+Notifications publish a short English message on `scootui:notification` for a
+compatible Librescoot dashboard. They report the selected style or the decision
+to leave sound off, without showing volume or waiting for controller confirmation.
+They do not wake the dashboard or queue messages while it is disconnected.
+Both settings default to `false`. Disable any external style-cycling rule before
+enabling the built-in rotation, otherwise both handlers will advance the style.
+
 ## Songs
 
 These songs come built in:

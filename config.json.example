@@ -2,6 +2,13 @@
   "can": { "interface": "can0" },
   "redis": { "addr": "127.0.0.1:6379" },
   "status": { "stale_seconds": 5 },
+  "engine_sound": {
+    "enabled": false,
+    "volume": 50,
+    "style": "v8",
+    "cycle_on_drive": false,
+    "notify_on_drive": false
+  },
   "unlock_melody": {
     "enabled": false,
     "song": 3,
