@@ -4,6 +4,12 @@ from engine_fixture import EngineFixture
 
 
 class BrakeIntegration(EngineFixture):
+    def setUp(self):
+        super().setUp()
+        config = json.loads(self.config.read_text())
+        config["engine_sound"]["require_left_brake"] = True
+        self.config.write_text(json.dumps(config))
+
     def test_gate_precedes_every_engine_on_path(self):
         self.start()
         self.transition("ready-to-drive")

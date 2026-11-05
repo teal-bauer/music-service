@@ -38,7 +38,7 @@ class EngineFixture(unittest.TestCase):
         self.redis("HSET", "vehicle", "state", "parked", "brake:left", "off")
         self.config = self.root / "config.json"
         self.config.write_text(json.dumps({"redis": {"addr": f"127.0.0.1:{self.port}"},
-                                         "engine_sound": {"enabled": True, "volume": 50, "style": "v8", "require_left_brake": True}}))
+                                         "engine_sound": {"enabled": True, "volume": 50, "style": "v8"}}))
         self.log = self.root / "service.log"
         self.service = None
         self.addCleanup(self.stop)
