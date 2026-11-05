@@ -233,6 +233,10 @@ func engineApplyStyle(sink canSink, id int) {
 
 func engineApplyBrakeRequired(sink canSink, required bool) {
 	engine.mu.Lock()
+	if engine.s.requireLeftBrake == required {
+		engine.mu.Unlock()
+		return
+	}
 	wasOn := engine.s.sounding(time.Now(), engine.vehicleState)
 	engine.s.requireLeftBrake = required
 	// A setting change must not reuse an admission from an earlier interval.
